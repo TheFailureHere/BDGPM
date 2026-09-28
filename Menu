@@ -1,8 +1,7 @@
 --[[
-    Box Deity's General Purpose Menu (BDGPM) | V3.5 REPAIRED
-    Fixed: recursive divider collision, variable scoping, card expand click zone,
-    streamproof label mounting, persistent render loop, missing drag anchors,
-    target info locking bug, and Chams depth overrides.
+    Box Deity's General Purpose Menu (BDGPM) | V3.5 REPAIRED & VERIFIED
+    Fixed: Scope order crash (NPCCache), missing table keys (ConeCol),
+    ViewCones render loop integration, duplicate Vals keys, and variable shadowing.
 ]]
 
 repeat task.wait() until game:IsLoaded()
@@ -32,15 +31,16 @@ pcall(function() TryDestroy(game:GetService("CoreGui"), "BDGPM_V3_FINAL") end)
 pcall(function() TryDestroy(LP:FindFirstChild("PlayerGui"), "BDGPM_V3_FINAL") end)
 
 -- ═══════════════════════════════════════════════════════════════
--- 1. STATE
+-- 1. STATE & FORWARD REGISTRY
 -- ═══════════════════════════════════════════════════════════════
 local FLAGS = {
     Aimbot=false, TargetInfo=true, Prediction=false, AimbotWallCheck=false,
-    Triggerbot=false, NoRecoil=false,
+    Triggerbot=false, TriggerbotNPCs=false, NoRecoil=false,
+    NPCChams=false,
     TarPlayers=true, TarBosses=false, TarNPCs=false,
     Indicator=false, HealthBars=false, HealthNumbers=true, DynamicColor=true,
     Spidey=false, Labels=false, Usernames=false, LabelVisCheck=false,
-    TeamSquares=false, SkeletonESP=false,
+    TeamSquares=false, SkeletonESP=false, ViewCones=false,
     Outlines=false, PeekingLogic=false, ESPBoxes=false, Beams=false,
     FullBright=false, Speed=false, Jump=false, Fly=false, Noclip=false,
     InfiniteJump=false, AntiSlowdown=false, FrictionMod=false,
@@ -74,7 +74,6 @@ local Vals = {
     CHCol={255,255,255}, SkeletonCol={0,255,255},
     BGTrans=0, ZoomFOV=40, CHLen=8, CHGap=6, CHThick=2,
     TeamSqSize=10, TeamSqThick=2, SkeletonThick=1,
-    TriggerDelay=10,
     NoRecoilMethod="Method A",
     IndicatorMinimap="Camera",
     AimbotLogic="Hold", ZoomLogic="Toggle", SpeedLogic="Toggle",
@@ -83,13 +82,17 @@ local Vals = {
     InfJumpPower=50,
     ChamsDepth="Always On Top",
     TriggerDelay=10,
-    TriggerReset=20,     -- Cooldown cycle between bursts (ms)
-    TriggerHold=15,      -- Sustained hold duration for weapon state engines (ms)
+    TriggerReset=20,
+    TriggerHold=15,
+    ConeLength=15,
+    ConeAngle=25,
+    ConeCol={255,255,0},
 }
 
 local LimbModes  = {Head=0,Torso=0,["Left Arm"]=0,["Right Arm"]=0,["Left Leg"]=0,["Right Leg"]=0}
 local OrigL      = {Amb=Lighting.Ambient,Out=Lighting.OutdoorAmbient,Bri=Lighting.Brightness,Shad=Lighting.GlobalShadows}
-local Cache      = {Labels={},Beams={},Outlines={},Health={},Indicators={},Squares={},TeamSquares={},Skeletons={}}
+local Cache      = {Labels={},Beams={},Outlines={},Health={},Indicators={},Squares={},TeamSquares={},Skeletons={},Cones={}}
+local NPCCache   = {} -- Declared in Section 1 so UpdateUI never iterates nil
 local Bosses, GenNPCs = {}, {}
 local UIUpdaters = {}
 local LockedTarget = nil
@@ -607,7 +610,6 @@ function CreateRow(tabName, name, desc, flag)
         local subH = subLayout.AbsoluteContentSize.Y + 14
         local target = expanded and (CARD_HEIGHT + subH) or CARD_HEIGHT
         TweenSvc:Create(card, TweenInfo.new(0.25,Enum.EasingStyle.Quart), {Size=UDim2.new(0.5,-4,0,target)}):Play()
-        -- Note: expBtn size is NOT resized, preventing accidental clicks closing the menu when clicking on sliders
     end
     expBtn.MouseButton1Click:Connect(DoExpand)
 
@@ -624,7 +626,31 @@ function CreateRow(tabName, name, desc, flag)
             Lighting.Brightness=OrigL.Bri; Lighting.GlobalShadows=OrigL.Shad
         end
         if flag=="RemoveGrass" then
-            pcall(function() Workspace.Terrain.Decoration = not on end)
+            pcall(function()
+                if sethiddenproperty then
+                    sethiddenproperty(Workspace.Terrain, "Decoration", not on)
+                else
+                    Workspace.Terrain.Decoration = not on
+                end
+            end)
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("MeshPart") or v:IsA("Part") then
+                    local lowName = v.Name:lower()
+                    if lowName:find("grass") or lowName:find("foliage") or lowName:find("weed") then
+                        v.Transparency = on and 1 or 0
+                        v.CanCollide = not on
+                    end
+                end
+            end
+        end
+        if flag == "NPCChams" then
+            for model, hl in pairs(NPCCache) do
+                if model.Parent and hl.Parent then
+                    hl.Enabled = on
+                else
+                    NPCCache[model] = nil
+                end
+            end
         end
         if flag=="RenderPurge" then
             for _,v in pairs(Workspace:GetDescendants()) do
@@ -804,6 +830,7 @@ AddTog(AB,"Prediction","Prediction"); AddSli(AB,"Factor","PredP",0,1)
 local TB = CreateRow("Combat","Triggerbot","Auto-fire when cursor hits target.","Triggerbot")
 AddBind(TB,"Hotkey","Triggerbot")
 AddStr(TB,"Logic","TriggerbotLogic",{"Hold","Toggle"})
+AddTog(TB,"Target NPCs","TriggerbotNPCs")
 AddSli(TB,"Reaction Delay (ms)","TriggerDelay",0,500)
 AddSli(TB,"Cycle Reset (ms)","TriggerReset",0,200)
 AddSli(TB,"Click Hold (ms)","TriggerHold",1,100)
@@ -866,6 +893,11 @@ fbThkSli = AddSli(BOX,"Box Thick","BoxThick",1,5)
 AddRGB(BOX,"Box Color","BoxCol")
 UpdateBoxUIVis(Vals.BoxStyle)
 
+local VC = CreateRow("Visuals","View Cones","Head look vector frustum.","ViewCones")
+AddSli(VC,"Cone Length","ConeLength",5,50)
+AddSli(VC,"Cone Angle","ConeAngle",10,60)
+AddRGB(VC,"Cone Color","ConeCol")
+
 local SKE = CreateRow("Visuals","Skeleton ESP","R6/R15 bone lines.","SkeletonESP")
 AddSli(SKE,"Max Dist","SkeletonDist",100,2000)
 AddSli(SKE,"Thickness","SkeletonThick",1,5); AddRGB(SKE,"Color","SkeletonCol")
@@ -874,6 +906,8 @@ local BEM = CreateRow("Visuals","Beams","Snapline tracers.","Beams")
 AddSli(BEM,"Width","BeamW",1,10); AddSli(BEM,"Opacity","BeamT",0,1); AddRGB(BEM,"Color","BeamCol")
 
 CreateRow("Visuals","FullBright","Lighting override.","FullBright")
+
+local NPC_Card = CreateRow("Visuals", "NPC Chams", "Always-on-top yellow glow on non-players.", "NPCChams")
 
 ---- MOVEMENT ----
 AddTab("Movement")
@@ -1073,17 +1107,13 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
--- Triggerbot
+    -- Triggerbot
     if FLAGS.Triggerbot and (Vals.TriggerbotLogic=="Toggle" or TriggerHold) then
         if not triggerDebounce then
-            -- Adaptive Ray: Handles both locked FPS crosshairs and free cursor modes
             local uRay
             if UIS.MouseBehavior == Enum.MouseBehavior.LockCenter then
-                -- Pure camera center boresight: 0% chance of mouse desync or stale coordinates
                 uRay = Ray.new(Cam.CFrame.Position, Cam.CFrame.LookVector)
             else
-                -- Free cursor mode: Screen space adjusted precisely for GUI inset
-                local inset = GuiService:GetGuiInset()
                 local mp = UIS:GetMouseLocation() - inset
                 uRay = Cam:ViewportPointToRay(mp.X, mp.Y)
             end
@@ -1292,6 +1322,49 @@ RunService.RenderStepped:Connect(function(dt)
                 else HideBox(p) end
             end
 
+            -- View Direction Cones
+            if HasDrawing and FLAGS.ViewCones and alive and labelInRange then
+                local headCF = head.CFrame
+                local forward = headCF.LookVector * Vals.ConeLength
+                local rightOffset = (headCF.RightVector * math.tan(math.rad(Vals.ConeAngle))) * Vals.ConeLength
+                
+                local pCenter = head.Position + forward
+                local pLeft   = head.Position + forward - rightOffset
+                local pRight  = head.Position + forward + rightOffset
+                
+                local sOrigin, oVis = Cam:WorldToViewportPoint(head.Position)
+                local sCenter, cVis = Cam:WorldToViewportPoint(pCenter)
+                local sLeft,   lVis = Cam:WorldToViewportPoint(pLeft)
+                local sRight,  rVis = Cam:WorldToViewportPoint(pRight)
+                
+                if oVis and (cVis or lVis or rVis) then
+                    local col = Color3.fromRGB(unpack(Vals.ConeCol))
+                    local o2D = Vector2.new(sOrigin.X, sOrigin.Y)
+                    
+                    local l1 = DLine(Cache.Cones, p, 1)
+                    l1.From = o2D; l1.To = Vector2.new(sLeft.X, sLeft.Y)
+                    l1.Color = col; l1.Thickness = 1; l1.Visible = true
+                    
+                    local l2 = DLine(Cache.Cones, p, 2)
+                    l2.From = o2D; l2.To = Vector2.new(sRight.X, sRight.Y)
+                    l2.Color = col; l2.Thickness = 1; l2.Visible = true
+                    
+                    local l3 = DLine(Cache.Cones, p, 3)
+                    l3.From = Vector2.new(sLeft.X, sLeft.Y); l3.To = Vector2.new(sRight.X, sRight.Y)
+                    l3.Color = col; l3.Thickness = 1; l3.Visible = true
+                else
+                    for i = 1, 3 do
+                        local ln = DLine(Cache.Cones, p, i)
+                        ln.Visible = false
+                    end
+                end
+            elseif Cache.Cones[p] then
+                for i = 1, 3 do
+                    local ln = DLine(Cache.Cones, p, i)
+                    ln.Visible = false
+                end
+            end
+
             -- Health Bars
             local hbg=Cache.Health[p]
             if FLAGS.HealthBars and alive and labelInRange then
@@ -1461,7 +1534,7 @@ RunService.Stepped:Connect(function(_,dt)
 end)
 
 -- ═══════════════════════════════════════════════════════════════
--- 17. NPC SCANNER + THREADED MONITOR
+-- 17. NPC SCANNER + HIGHLIGHT ENGINE
 -- ═══════════════════════════════════════════════════════════════
 local function CheckNPC(v)
     if not v:IsA("Model") or v==LP.Character then return end
@@ -1506,6 +1579,51 @@ task.spawn(function()
     end
 end)
 
+-- NPC Highlight Engine
+local function HookNPC(model)
+    if not model:IsA("Model") then return end
+    if Players:GetPlayerFromCharacter(model) then return end
+    if NPCCache[model] then return end
+
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    local hl = Instance.new("Highlight")
+    hl.Name = "NPC_YellowHL"
+    hl.Adornee = model
+    hl.FillColor = Color3.fromRGB(255, 220, 0)
+    hl.FillTransparency = 0.5
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Enabled = FLAGS.NPCChams
+    hl.Parent = model
+
+    NPCCache[model] = hl
+
+    model.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            if hl then hl:Destroy() end
+            NPCCache[model] = nil
+        end
+    end)
+end
+
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
+        if obj:FindFirstChildOfClass("Humanoid") then
+            HookNPC(obj)
+        end
+    end
+end
+
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("Humanoid") and obj.Parent and obj.Parent:IsA("Model") then
+        task.wait(0.1)
+        HookNPC(obj.Parent)
+    end
+end)
+
 -- ═══════════════════════════════════════════════════════════════
 -- 18. MEMORY CLEANUP
 -- ═══════════════════════════════════════════════════════════════
@@ -1515,7 +1633,7 @@ local function ReleasePlayer(p)
     if Cache.Labels[p]      then Cache.Labels[p]:Destroy();      Cache.Labels[p]=nil      end
     if Cache.Health[p]      then Cache.Health[p]:Destroy();      Cache.Health[p]=nil      end
     if Cache.Outlines[p]    then Cache.Outlines[p]:Destroy();    Cache.Outlines[p]=nil    end
-    for _,key in ipairs({"Squares","TeamSquares","Skeletons"}) do
+    for _,key in ipairs({"Squares","TeamSquares","Skeletons","Cones"}) do
         if Cache[key][p] then
             for _,ln in pairs(Cache[key][p]) do pcall(function() ln:Remove() end) end
             Cache[key][p]=nil
