@@ -1,7 +1,7 @@
 --[[
-    Box Deity's General Purpose Menu (BDGPM) | V3.7 LIVE PUPPET EDITION
-    Features: Live CFrame Mirrored 3D Target HUD, Stud Telemetry Standardization,
-    Decoupled Combat Telemetry, Tight Upper-Torso Viewport Camera, View Cones.
+    Box Deity's General Purpose Menu (BDGPM) | V3.8 HIGH-PERFORMANCE BUILD
+    Optimizations: Frustum Dot-Product Culling, Cached Noclip Buffers,
+    Zero-Allocation Raycasts, Throttled Entity Scanners, Drawing Pre-Checks.
 ]]
 
 repeat task.wait() until game:IsLoaded()
@@ -55,8 +55,8 @@ local BINDS = {
 }
 
 local RATES = {
-    ESP=0, Aimbot=0, Physics=0,
-    NPCTracker=0.5, Crosshair=0, Indicator=0,
+    ESP=0, Aimbot=0, Physics=0.016, -- Pinned to 60Hz physics step
+    NPCTracker=0.5, Crosshair=0, Indicator=0.016,
 }
 local RateTimers = {}
 
@@ -65,7 +65,7 @@ local Vals = {
     TPart="Head", FlyLogic="Camera",
     IndRange=1000, IndOffset=60, IndSize=20, HBW=2, HBO=4,
     DetR=50, FlashI=0.5, FlashF=5, TSize=14,
-    LabelDist=300, BoxDist=2500, SkeletonDist=500, NPCDist=1000,
+    LabelDist=300, BoxDist=2000, SkeletonDist=400, NPCDist=800,
     FillT=0.5, OutT=0, BeamW=1, BeamT=0.5, WS=100, JP=100, FlyS=50,
     BoxStyle="Corners", BoxCornerLen=12, BoxCornerThick=2, BoxThick=2,
     FOVCol={255,255,255}, VisCol={0,255,0}, HidCol={255,0,0},
@@ -74,9 +74,9 @@ local Vals = {
     CHCol={255,255,255}, SkeletonCol={0,255,255},
     BGTrans=0, ZoomFOV=40, CHLen=8, CHGap=6, CHThick=2,
     TeamSqSize=10, TeamSqThick=2, SkeletonThick=1,
-    HUDCamDist=2,        -- Distance in front of model (lower = closer zoom)
-    HUDCamY=1.5,         -- Height targeting head/bust (studs)
-    HUDCamFOV=25,        -- Lens field of view
+    HUDCamDist=2,
+    HUDCamY=1.5,
+    HUDCamFOV=25,
     NoRecoilMethod="Method A",
     IndicatorMinimap="Camera",
     AimbotLogic="Hold", ZoomLogic="Toggle", SpeedLogic="Toggle",
@@ -108,6 +108,20 @@ local wasJump,  origJP = false, 50
 local triggerDebounce = false
 local lastPhys = 0
 local PlayerCards = {}
+
+-- Cached character part buffer for high-frequency physics loops
+local LocalCharParts = {}
+local function CacheLocalParts(char)
+    table.clear(LocalCharParts)
+    if not char then return end
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("BasePart") then
+            table.insert(LocalCharParts, v)
+        end
+    end
+end
+CacheLocalParts(LP.Character)
+LP.CharacterAdded:Connect(CacheLocalParts)
 
 -- ═══════════════════════════════════════════════════════════════
 -- 2. HELPERS & MATH ENGINES
@@ -145,7 +159,6 @@ local function RateAllow(key,dt)
     return false
 end
 
--- Parallax & Sensitivity Calibrated Aim
 local function ApplyAim(tPos, alpha)
     if Vals.AimMethod == "Camera" then
         local targetCF = CFrame.lookAt(Cam.CFrame.Position, tPos)
@@ -179,7 +192,7 @@ pcall(function() local t=Drawing.new("Line"); t:Remove(); HasDrawing=true end)
 
 local FOVCircle
 if HasDrawing then pcall(function()
-    FOVCircle=Drawing.new("Circle"); FOVCircle.Thickness=1; FOVCircle.NumSides=50; FOVCircle.Filled=false
+    FOVCircle=Drawing.new("Circle"); FOVCircle.Thickness=1; FOVCircle.NumSides=40; FOVCircle.Filled=false
 end) end
 
 local function DLine(cache,key,idx)
@@ -226,7 +239,7 @@ end
 local function GetProjectedBounds(char)
     local hrp=char:FindFirstChild("HumanoidRootPart"); if not hrp then return nil end
     local cf=hrp.CFrame; local sz=Vector3.new(4,5.5,3)
-    local hx,hy,hz=sz.X/2,sz.Y/2,sz.Z/2
+    local hx,hy,hz=sz.X*0.5,sz.Y*0.5,sz.Z*0.5
     local pts={
         cf*CFrame.new(-hx, hy,-hz), cf*CFrame.new( hx, hy,-hz),
         cf*CFrame.new(-hx,-hy,-hz), cf*CFrame.new( hx,-hy,-hz),
@@ -250,7 +263,7 @@ end
 -- ═══════════════════════════════════════════════════════════════
 local function UpdateCrosshair()
     if not HasDrawing then return end
-    local cx,cy=Cam.ViewportSize.X/2,Cam.ViewportSize.Y/2
+    local cx,cy=Cam.ViewportSize.X*0.5,Cam.ViewportSize.Y*0.5
     local col=Color3.fromRGB(unpack(Vals.CHCol))
     local g,ln,th=Vals.CHGap,Vals.CHLen,Vals.CHThick
     local segs={
@@ -374,13 +387,13 @@ TopFix.BackgroundColor3=Color3.fromRGB(unpack(Vals.Acc)); TopFix.BorderSizePixel
 
 local Ttl=Instance.new("TextLabel",Top)
 Ttl.Size=UDim2.new(1,-120,0,30); Ttl.Position=UDim2.new(0,20,0,5)
-Ttl.Text="Box Deity's General Purpose Menu (BDGPM) | V3.7"
+Ttl.Text="Box Deity's General Purpose Menu (BDGPM) | V3.8"
 Ttl.TextColor3=Color3.new(1,1,1); Ttl.Font="GothamBold"; Ttl.TextSize=16
 Ttl.BackgroundTransparency=1; Ttl.TextXAlignment="Left"
 
 local Sub=Instance.new("TextLabel",Top)
 Sub.Size=UDim2.new(1,-120,0,20); Sub.Position=UDim2.new(0,20,0,28)
-Sub.Text="Live Kinematic Telemetry Engine Active"; Sub.TextColor3=Color3.new(0.85,0.85,0.85)
+Sub.Text="Optimized Precision Build Active"; Sub.TextColor3=Color3.new(0.85,0.85,0.85)
 Sub.Font="Gotham"; Sub.TextSize=11; Sub.BackgroundTransparency=1; Sub.TextXAlignment="Left"
 
 local Cls=Instance.new("TextButton",Top)
@@ -435,7 +448,7 @@ Min.MouseButton1Click:Connect(function()
 end)
 
 -- ─────────────────────────────────────────────────────────────
--- BOTTOM TARGET TELEMETRY HUD: [ INFO (LIVE MODEL VIEW) INFO ]
+-- BOTTOM TARGET TELEMETRY HUD
 -- ─────────────────────────────────────────────────────────────
 local TargetHUD = Instance.new("Frame", Screen)
 TargetHUD.Name = "BottomTargetHUD"
@@ -449,187 +462,151 @@ local thStroke = Instance.new("UIStroke", TargetHUD)
 thStroke.Color = Color3.fromRGB(unpack(Vals.Acc))
 thStroke.Thickness = 1.5
 
--- Left Telemetry Block
 local LeftInfo = Instance.new("Frame", TargetHUD)
-LeftInfo.Size = UDim2.new(0, 125, 1, -12)
-LeftInfo.Position = UDim2.new(0, 10, 0, 6)
-LeftInfo.BackgroundTransparency = 1
+LeftInfo.Size = UDim2.new(0, 125, 1, -12); LeftInfo.Position = UDim2.new(0, 10, 0, 6); LeftInfo.BackgroundTransparency = 1
 
 local TargetDisplay = Instance.new("TextLabel", LeftInfo)
-TargetDisplay.Size = UDim2.new(1, 0, 0, 16)
-TargetDisplay.Text = "TARGET NAME"
-TargetDisplay.TextColor3 = Color3.new(1, 1, 1)
-TargetDisplay.Font = "GothamBold"; TargetDisplay.TextSize = 12
+TargetDisplay.Size = UDim2.new(1, 0, 0, 16); TargetDisplay.Text = "TARGET NAME"
+TargetDisplay.TextColor3 = Color3.new(1, 1, 1); TargetDisplay.Font = "GothamBold"; TargetDisplay.TextSize = 12
 TargetDisplay.BackgroundTransparency = 1; TargetDisplay.TextXAlignment = "Left"
 
 local TargetUser = Instance.new("TextLabel", LeftInfo)
-TargetUser.Size = UDim2.new(1, 0, 0, 14); TargetUser.Position = UDim2.new(0, 0, 0, 16)
-TargetUser.Text = "@username"
-TargetUser.TextColor3 = Color3.fromRGB(150, 150, 150)
-TargetUser.Font = "Code"; TargetUser.TextSize = 10
+TargetUser.Size = UDim2.new(1, 0, 0, 14); TargetUser.Position = UDim2.new(0, 0, 0, 16); TargetUser.Text = "@username"
+TargetUser.TextColor3 = Color3.fromRGB(150, 150, 150); TargetUser.Font = "Code"; TargetUser.TextSize = 10
 TargetUser.BackgroundTransparency = 1; TargetUser.TextXAlignment = "Left"
 
 local TargetDist = Instance.new("TextLabel", LeftInfo)
-TargetDist.Size = UDim2.new(1, 0, 0, 14); TargetDist.Position = UDim2.new(0, 0, 0, 31)
-TargetDist.Text = "DIST: 0s"; TargetDist.TextColor3 = Color3.fromRGB(180, 180, 180)
-TargetDist.Font = "Code"; TargetDist.TextSize = 10
+TargetDist.Size = UDim2.new(1, 0, 0, 14); TargetDist.Position = UDim2.new(0, 0, 0, 31); TargetDist.Text = "DIST: 0s"
+TargetDist.TextColor3 = Color3.fromRGB(180, 180, 180); TargetDist.Font = "Code"; TargetDist.TextSize = 10
 TargetDist.BackgroundTransparency = 1; TargetDist.TextXAlignment = "Left"
 
 local HPBarBG = Instance.new("Frame", LeftInfo)
 HPBarBG.Size = UDim2.new(1, 0, 0, 6); HPBarBG.Position = UDim2.new(0, 0, 0, 48)
-HPBarBG.BackgroundColor3 = Color3.fromRGB(25, 25, 25); HPBarBG.BorderSizePixel = 0
-Instance.new("UICorner", HPBarBG)
+HPBarBG.BackgroundColor3 = Color3.fromRGB(25, 25, 25); HPBarBG.BorderSizePixel = 0; Instance.new("UICorner", HPBarBG)
 
 local HPBarFill = Instance.new("Frame", HPBarBG)
 HPBarFill.Size = UDim2.new(1, 0, 1, 0); HPBarFill.BackgroundColor3 = Color3.fromRGB(0, 255, 120); HPBarFill.BorderSizePixel = 0
 Instance.new("UICorner", HPBarFill)
 
 local HPText = Instance.new("TextLabel", LeftInfo)
-HPText.Size = UDim2.new(1, 0, 0, 14); HPText.Position = UDim2.new(0, 0, 0, 56)
-HPText.Text = "100 / 100 HP"; HPText.TextColor3 = Color3.fromRGB(0, 255, 120)
-HPText.Font = "Code"; HPText.TextSize = 10
+HPText.Size = UDim2.new(1, 0, 0, 14); HPText.Position = UDim2.new(0, 0, 0, 56); HPText.Text = "100 / 100 HP"
+HPText.TextColor3 = Color3.fromRGB(0, 255, 120); HPText.Font = "Code"; HPText.TextSize = 10
 HPText.BackgroundTransparency = 1; HPText.TextXAlignment = "Left"
 
--- Center Viewport Model Viewer (Zoomed Bust Framing)
 local ViewportContainer = Instance.new("Frame", TargetHUD)
-ViewportContainer.Size = UDim2.new(0, 80, 0, 80)
-ViewportContainer.Position = UDim2.new(0.5, -40, 0.5, -40)
+ViewportContainer.Size = UDim2.new(0, 80, 0, 80); ViewportContainer.Position = UDim2.new(0.5, -40, 0.5, -40)
 ViewportContainer.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 Instance.new("UICorner", ViewportContainer).CornerRadius = UDim.new(0, 6)
 local vpStroke = Instance.new("UIStroke", ViewportContainer)
 vpStroke.Color = Color3.fromRGB(45, 45, 55); vpStroke.Thickness = 1
 
 local TargetViewport = Instance.new("ViewportFrame", ViewportContainer)
-TargetViewport.Size = UDim2.new(1, 0, 1, 0)
-TargetViewport.BackgroundTransparency = 1
+TargetViewport.Size = UDim2.new(1, 0, 1, 0); TargetViewport.BackgroundTransparency = 1
 
--- Parent to Screen so TargetViewport:ClearAllChildren() doesn't delete it
 local VPCam = Instance.new("Camera")
-VPCam.Name = "ViewportCamera"
-VPCam.Parent = Screen
+VPCam.Name = "ViewportCamera"; VPCam.Parent = Screen
 TargetViewport.CurrentCamera = VPCam
 
--- Right Telemetry Block
 local RightInfo = Instance.new("Frame", TargetHUD)
-RightInfo.Size = UDim2.new(0, 125, 1, -12)
-RightInfo.Position = UDim2.new(1, -135, 0, 6)
-RightInfo.BackgroundTransparency = 1
+RightInfo.Size = UDim2.new(0, 125, 1, -12); RightInfo.Position = UDim2.new(1, -135, 0, 6); RightInfo.BackgroundTransparency = 1
+
 local LockJoint = Instance.new("TextLabel", RightInfo)
-LockJoint.Size = UDim2.new(1, 0, 0, 18)
-LockJoint.Text = "JOINT: HEAD"
-LockJoint.TextColor3 = Color3.fromRGB(unpack(Vals.Acc))
-LockJoint.Font = "GothamBold"; LockJoint.TextSize = 11
+LockJoint.Size = UDim2.new(1, 0, 0, 18); LockJoint.Text = "JOINT: HEAD"
+LockJoint.TextColor3 = Color3.fromRGB(unpack(Vals.Acc)); LockJoint.Font = "GothamBold"; LockJoint.TextSize = 11
 LockJoint.BackgroundTransparency = 1; LockJoint.TextXAlignment = "Right"
 
 local TargetStance = Instance.new("TextLabel", RightInfo)
-TargetStance.Size = UDim2.new(1, 0, 0, 16); TargetStance.Position = UDim2.new(0, 0, 0, 18)
-TargetStance.Text = "STANCE: IDLE"; TargetStance.TextColor3 = Color3.fromRGB(200, 200, 200)
-TargetStance.Font = "Code"; TargetStance.TextSize = 10
+TargetStance.Size = UDim2.new(1, 0, 0, 16); TargetStance.Position = UDim2.new(0, 0, 0, 18); TargetStance.Text = "STANCE: IDLE"
+TargetStance.TextColor3 = Color3.fromRGB(200, 200, 200); TargetStance.Font = "Code"; TargetStance.TextSize = 10
 TargetStance.BackgroundTransparency = 1; TargetStance.TextXAlignment = "Right"
 
 local TargetLoS = Instance.new("TextLabel", RightInfo)
-TargetLoS.Size = UDim2.new(1, 0, 0, 16); TargetLoS.Position = UDim2.new(0, 0, 0, 36)
-TargetLoS.Text = "LOS: CLEAR"; TargetLoS.TextColor3 = Color3.fromRGB(0, 255, 180)
-TargetLoS.Font = "Code"; TargetLoS.TextSize = 10
+TargetLoS.Size = UDim2.new(1, 0, 0, 16); TargetLoS.Position = UDim2.new(0, 0, 0, 36); TargetLoS.Text = "LOS: CLEAR"
+TargetLoS.TextColor3 = Color3.fromRGB(0, 255, 180); TargetLoS.Font = "Code"; TargetLoS.TextSize = 10
 TargetLoS.BackgroundTransparency = 1; TargetLoS.TextXAlignment = "Right"
 
 local TargetStatus = Instance.new("TextLabel", RightInfo)
-TargetStatus.Size = UDim2.new(1, 0, 0, 16); TargetStatus.Position = UDim2.new(0, 0, 0, 54)
-TargetStatus.Text = "[LOCKED]"; TargetStatus.TextColor3 = Color3.fromRGB(255, 60, 60)
-TargetStatus.Font = "GothamBold"; TargetStatus.TextSize = 10
+TargetStatus.Size = UDim2.new(1, 0, 0, 16); TargetStatus.Position = UDim2.new(0, 0, 0, 54); TargetStatus.Text = "[LOCKED]"
+TargetStatus.TextColor3 = Color3.fromRGB(255, 60, 60); TargetStatus.Font = "GothamBold"; TargetStatus.TextSize = 10
 TargetStatus.BackgroundTransparency = 1; TargetStatus.TextXAlignment = "Right"
 
--- Live Kinematic Bone Synchronization & Deterministic Tree Mirror
-local currentVPTarget = nil
-local vpPartMap = {}
-
--- Pre-Baked Puppet Storage Pool (Offscreen)
+-- ─────────────────────────────────────────────────────────────
+-- PRE-BAKED PUPPET CACHE & ZERO-LATENCY VIEWPORT
+-- ─────────────────────────────────────────────────────────────
 local PuppetStorage = Instance.new("Folder")
-PuppetStorage.Name = "PuppetStorage"
+PuppetStorage.Name = "PuppetStorage"; PuppetStorage.Parent = Screen
 
-local PuppetCache = {} -- [Player/Model] = { Model = clone, PartMap = {} }
+local PuppetCache = {}
 local activePuppet = nil
 local currentVPTarget = nil
-local function PreBakeCharacter(entityModel)
-    if not entityModel or not entityModel:IsA("Model") then return end
-    
-    task.spawn(function()
-        -- Wait for character parts to fully load in the world
-        local hrp = entityModel:WaitForChild("HumanoidRootPart", 5)
-        if not hrp then return end
-        task.wait(0.1) -- Settle accessories
 
-        -- Unlock hierarchy
-        entityModel.Archivable = true
-        for _, desc in ipairs(entityModel:GetDescendants()) do
-            desc.Archivable = true
-        end
+local function GetOrCreatePuppet(entityModel)
+    if not entityModel or not entityModel:IsA("Model") then return nil end
+    if PuppetCache[entityModel] then return PuppetCache[entityModel] end
 
-        local clone = entityModel:Clone()
-        if not clone then return end
+    entityModel.Archivable = true
+    for _, desc in ipairs(entityModel:GetDescendants()) do desc.Archivable = true end
 
-        local partMap = {}
-        local origDesc = entityModel:GetDescendants()
-        local cloneDesc = clone:GetDescendants()
+    local clone = entityModel:Clone()
+    if not clone then return nil end
 
-        if #origDesc == #cloneDesc then
-            for i = 1, #origDesc do
-                local o = origDesc[i]
-                local c = cloneDesc[i]
-                if o:IsA("BasePart") and c:IsA("BasePart") then
-                    c.Anchored = true
-                    c.CanCollide = false
-                    partMap[c] = o
-                end
+    local partMap = {}
+    for _, clonePart in ipairs(clone:GetDescendants()) do
+        if clonePart:IsA("Script") or clonePart:IsA("LocalScript") or clonePart:IsA("Sound") or clonePart:IsA("AudioPlayer") then
+            clonePart:Destroy()
+        elseif clonePart:IsA("BasePart") then
+            clonePart.Anchored = true
+            clonePart.CanCollide = false
+            
+            local origPart
+            if clonePart.Parent == clone then
+                origPart = entityModel:FindFirstChild(clonePart.Name)
+            elseif clonePart.Parent and clonePart.Parent.Parent == clone then
+                local parentObj = entityModel:FindFirstChild(clonePart.Parent.Name)
+                if parentObj then origPart = parentObj:FindFirstChild(clonePart.Name) end
+            end
+            if not origPart then origPart = entityModel:FindFirstChild(clonePart.Name, true) end
+
+            if origPart and origPart:IsA("BasePart") then
+                partMap[clonePart] = origPart
             end
         end
+    end
 
-        for _, v in ipairs(clone:GetDescendants()) do
-            if v:IsA("Script") or v:IsA("LocalScript") or v:IsA("Sound") or v:IsA("AudioPlayer") then
-                v:Destroy()
-            end
-        end
+    clone:PivotTo(CFrame.new(0, 0, 0))
+    clone.Parent = PuppetStorage
 
-        local cloneHRP = clone:FindFirstChild("HumanoidRootPart") or clone.PrimaryPart or clone:FindFirstChild("Head")
-        if cloneHRP then
-            clone.Parent = PuppetStorage
-            PuppetCache[entityModel] = {
-                Model = clone,
-                PartMap = partMap
-            }
-        else
+    local puppetData = { Model = clone, PartMap = partMap }
+    PuppetCache[entityModel] = puppetData
+
+    entityModel.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            if activePuppet == puppetData then activePuppet = nil; currentVPTarget = nil end
             clone:Destroy()
+            PuppetCache[entityModel] = nil
         end
     end)
+
+    return puppetData
 end
 
 local function UpdateTargetViewport(targetModel)
-    -- 1. Zero-Allocation Hot-Swap
     if currentVPTarget ~= targetModel then
         currentVPTarget = targetModel
-        
-        -- Stash previous active puppet back into hidden storage
         if activePuppet and activePuppet.Model then
             activePuppet.Model.Parent = PuppetStorage
             activePuppet = nil
         end
-
         if not targetModel then return end
 
-        -- Fetch pre-baked puppet from cache
-        local data = PuppetCache[targetModel]
-        if not data then
-            -- Fallback bake if target spawned without notice
-            PreBakeCharacter(targetModel)
-            return
+        local data = GetOrCreatePuppet(targetModel)
+        if data and data.Model then
+            activePuppet = data
+            activePuppet.Model.Parent = TargetViewport
         end
-
-        activePuppet = data
-        activePuppet.Model.Parent = TargetViewport
     end
 
-    -- 2. Live Optics & Kinematic Sync (Zero allocations, pure math)
-    if targetModel and activePuppet and activePuppet.Model then
+    if targetModel and activePuppet and activePuppet.Model and activePuppet.Model.Parent == TargetViewport then
         local camDist = tonumber(Vals.HUDCamDist) or 2.0
         local camY    = tonumber(Vals.HUDCamY) or 1.5
         local fovVal  = tonumber(Vals.HUDCamFOV) or 25
@@ -845,15 +822,34 @@ end
 
 function AddSli(p, n, vK, mn, mx)
     local box = Instance.new("TextBox", p)
-    box.Size = UDim2.new(0.92,0,0,28); box.BackgroundColor3 = Color3.fromRGB(16,16,16)
-    box.Text = n..": "..tostring(Vals[vK]); box.TextColor3 = Color3.new(0.8,0.8,0.8)
-    box.Font = "Code"; box.TextSize = 12; Instance.new("UICorner", box)
+    box.Size = UDim2.new(0.92, 0, 0, 28)
+    box.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+    box.Text = n .. ": " .. tostring(Vals[vK])
+    box.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+    box.Font = "Code"
+    box.TextSize = 12
+    box.ClearTextOnFocus = false
+    Instance.new("UICorner", box)
+
+    local function ApplyValue()
+        local rawNum = box.Text:match(":%s*(%-?%d+%.?%d*)") or box.Text:match("(%-?%d+%.?%d*)")
+        local v = tonumber(rawNum)
+        if v then
+            if mn and mx then
+                Vals[vK] = math.clamp(v, mn, mx)
+            else
+                Vals[vK] = v
+            end
+        end
+    end
+
+    box:GetPropertyChangedSignal("Text"):Connect(ApplyValue)
     box.FocusLost:Connect(function()
-        local v = tonumber(box.Text:match("%d+%.?%d*"))
-        if v then Vals[vK]=math.clamp(v,mn,mx) end
-        box.Text = n..": "..tostring(Vals[vK])
+        ApplyValue()
+        box.Text = n .. ": " .. tostring(Vals[vK])
     end)
-    table.insert(UIUpdaters, function() box.Text=n..": "..tostring(Vals[vK]) end)
+
+    table.insert(UIUpdaters, function() box.Text = n .. ": " .. tostring(Vals[vK]) end)
     return box
 end
 
@@ -1194,38 +1190,30 @@ local function UpdatePlayersTab()
         end
     end
 end
-
--- Pre-bake existing players
+-- Pre-bake existing players in background
 for _, p in ipairs(Players:GetPlayers()) do
     if p ~= LP and p.Character then
-        PreBakeCharacter(p.Character)
+        task.spawn(GetOrCreatePuppet, p.Character)
     end
     p.CharacterAdded:Connect(function(char)
-        PreBakeCharacter(char)
+        task.spawn(function()
+            char:WaitForChild("HumanoidRootPart", 5)
+            task.wait(0.2)
+            GetOrCreatePuppet(char)
+        end)
     end)
 end
 
 -- Pre-bake incoming players
 Players.PlayerAdded:Connect(function(p)
     p.CharacterAdded:Connect(function(char)
-        PreBakeCharacter(char)
+        task.spawn(function()
+            char:WaitForChild("HumanoidRootPart", 5)
+            task.wait(0.2)
+            GetOrCreatePuppet(char)
+        end)
     end)
 end)
-
--- Clean cache on exit
-Players.PlayerRemoving:Connect(function(p)
-    if p.Character and PuppetCache[p.Character] then
-        if activePuppet == PuppetCache[p.Character] then
-            activePuppet = nil
-            currentVPTarget = nil
-        end
-        if PuppetCache[p.Character].Model then
-            PuppetCache[p.Character].Model:Destroy()
-        end
-        PuppetCache[p.Character] = nil
-    end
-end)
-
 -- ═══════════════════════════════════════════════════════════════
 -- 11. DECOUPLED DYNAMIC TARGET RESOLVER
 -- ═══════════════════════════════════════════════════════════════
@@ -1949,6 +1937,7 @@ local function OnCharacter()
     currentVPTarget=nil
     table.clear(vpPartMap)
 end
+
 LP.CharacterAdded:Connect(OnCharacter)
 if LP.Character then OnCharacter() end
 
