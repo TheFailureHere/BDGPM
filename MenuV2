@@ -46,7 +46,7 @@ local FLAGS = {
     InfiniteJump=false, AntiSlowdown=false, FrictionMod=false,
     NPCTracker=false, StreamProof=false, Crosshair=false, Zoom=false,
     KeybindHUD=false, RatesPanel=false, ConfigPanel=false,
-    RemoveGrass=false, RenderPurge=false,
+    RemoveGrass=false, RenderPurge=false, FixGlass = false,
 }
 
 local BINDS = {
@@ -768,6 +768,9 @@ function CreateRow(tabName, name, desc, flag)
             Lighting.Ambient=OrigL.Amb; Lighting.OutdoorAmbient=OrigL.Out
             Lighting.Brightness=OrigL.Bri; Lighting.GlobalShadows=OrigL.Shad
         end
+        if flag == "FixGlass" then
+            FixGlassOcclusion(on)
+        end
         if flag=="RemoveGrass" then
             pcall(function()
                 if sethiddenproperty then sethiddenproperty(Workspace.Terrain, "Decoration", not on)
@@ -1132,6 +1135,7 @@ AddRateSli(RROW,"Crosshair", "Crosshair"); AddRateSli(RROW,"Indicator","Indicato
 
 local UTILS = CreateRow("Settings","Optimizations","World pruning tools.","RemoveGrass")
 AddTog(UTILS,"Remove Grass","RemoveGrass"); AddTog(UTILS,"Purge Particles","RenderPurge")
+AddTog(UTILS, "Glass Highlight Bypass", "FixGlass")
 
 local CONF = CreateRow("Settings","Config Profiles","Save/Load JSON profiles.","ConfigPanel")
 local CInp=Instance.new("TextBox",CONF); CInp.Size=UDim2.new(0.92,0,0,28); CInp.Text="Default"
@@ -1214,6 +1218,24 @@ Players.PlayerAdded:Connect(function(p)
         end)
     end)
 end)
+-- Fix: Force all transparent Glass to SmoothPlastic so Highlights render through
+local function FixGlassOcclusion(enabled)
+    for _, part in ipairs(Workspace:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if enabled then
+                if part.Material == Enum.Material.Glass then
+                    part:SetAttribute("WasGlass", true)
+                    part.Material = Enum.Material.SmoothPlastic
+                end
+            else
+                if part:GetAttribute("WasGlass") then
+                    part.Material = Enum.Material.Glass
+                    part:SetAttribute("WasGlass", nil)
+                end
+            end
+        end
+    end
+end
 -- ═══════════════════════════════════════════════════════════════
 -- 11. DECOUPLED DYNAMIC TARGET RESOLVER
 -- ═══════════════════════════════════════════════════════════════
@@ -1814,8 +1836,22 @@ end)
 
 local function HookNPC(model)
     if not model:IsA("Model") then return end
+    
+    -- 1. Ignore LocalPlayer character and any sub-rigs
+    if model == LP.Character or model:IsDescendantOf(LP.Character) then return end
+    
+    -- 2. Ignore camera viewmodels (where FPS arms live)
+    if model:IsDescendantOf(Cam) then return end
+    
+    -- 3. Ignore player characters
     if Players:GetPlayerFromCharacter(model) then return end
     if NPCCache[model] then return end
+
+    -- 4. Reject common first-person viewmodel and weapon model names
+    local lowName = model.Name:lower()
+    if lowName:find("viewmodel") or lowName:find("arms") or lowName:find("weapon") or lowName:find("gun") then
+        return
+    end
 
     local hum = model:FindFirstChildOfClass("Humanoid")
     if not hum then return end
@@ -1839,6 +1875,18 @@ local function HookNPC(model)
             NPCCache[model] = nil
         end
     end)
+end
+for _, v in ipairs(Cam:GetDescendants()) do
+    if v:IsA("Highlight") and v.Name == "NPC_YellowHL" then
+        v:Destroy()
+    end
+end
+if LP.Character then
+    for _, v in ipairs(LP.Character:GetDescendants()) do
+        if v:IsA("Highlight") and v.Name == "NPC_YellowHL" then
+            v:Destroy()
+        end
+    end
 end
 
 for _, obj in ipairs(Workspace:GetDescendants()) do
