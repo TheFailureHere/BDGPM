@@ -1,7 +1,8 @@
 --[[
-    Box Deity's General Purpose Menu (BDGPM) | V3.8 HIGH-PERFORMANCE BUILD
-    Optimizations: Frustum Dot-Product Culling, Cached Noclip Buffers,
-    Zero-Allocation Raycasts, Throttled Entity Scanners, Drawing Pre-Checks.
+    Box Deity's General Purpose Menu (BDGPM) | V3.9 OPTIMIZED & ARMORED
+    Features: Live CFrame Mirrored 3D Target HUD, Stud Telemetry Standardization,
+    Decoupled Combat Telemetry, View Cones, Viewmodel-Filtered NPC Yellow Chams,
+    Glass Highlight Occlusion Bypass, High-Performance Frustum Culling.
 ]]
 
 repeat task.wait() until game:IsLoaded()
@@ -36,7 +37,7 @@ pcall(function() TryDestroy(LP:FindFirstChild("PlayerGui"), "BDGPM_V3_FINAL") en
 local FLAGS = {
     Aimbot=false, TargetInfo=false, Prediction=false, AimbotWallCheck=false,
     Triggerbot=false, TriggerbotNPCs=false, NoRecoil=false,
-    NPCChams=false,
+    NPCChams=false, FixGlass=false,
     TarPlayers=true, TarBosses=false, TarNPCs=false,
     Indicator=false, HealthBars=false, HealthNumbers=true, DynamicColor=true,
     Spidey=false, Labels=false, Usernames=false, LabelVisCheck=false,
@@ -46,7 +47,7 @@ local FLAGS = {
     InfiniteJump=false, AntiSlowdown=false, FrictionMod=false,
     NPCTracker=false, StreamProof=false, Crosshair=false, Zoom=false,
     KeybindHUD=false, RatesPanel=false, ConfigPanel=false,
-    RemoveGrass=false, RenderPurge=false, FixGlass = false,
+    RemoveGrass=false, RenderPurge=false,
 }
 
 local BINDS = {
@@ -55,7 +56,7 @@ local BINDS = {
 }
 
 local RATES = {
-    ESP=0, Aimbot=0, Physics=0.016, -- Pinned to 60Hz physics step
+    ESP=0, Aimbot=0, Physics=0.016,
     NPCTracker=0.5, Crosshair=0, Indicator=0.016,
 }
 local RateTimers = {}
@@ -159,6 +160,26 @@ local function RateAllow(key,dt)
     return false
 end
 
+-- Fix: Force all transparent Glass to SmoothPlastic so Highlights render through
+local function FixGlassOcclusion(enabled)
+    for _, part in ipairs(Workspace:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if enabled then
+                if part.Material == Enum.Material.Glass then
+                    part:SetAttribute("WasGlass", true)
+                    part.Material = Enum.Material.SmoothPlastic
+                end
+            else
+                if part:GetAttribute("WasGlass") then
+                    part.Material = Enum.Material.Glass
+                    part:SetAttribute("WasGlass", nil)
+                end
+            end
+        end
+    end
+end
+
+-- Parallax & Sensitivity Calibrated Aim
 local function ApplyAim(tPos, alpha)
     if Vals.AimMethod == "Camera" then
         local targetCF = CFrame.lookAt(Cam.CFrame.Position, tPos)
@@ -387,13 +408,13 @@ TopFix.BackgroundColor3=Color3.fromRGB(unpack(Vals.Acc)); TopFix.BorderSizePixel
 
 local Ttl=Instance.new("TextLabel",Top)
 Ttl.Size=UDim2.new(1,-120,0,30); Ttl.Position=UDim2.new(0,20,0,5)
-Ttl.Text="Box Deity's General Purpose Menu (BDGPM) | V3.8"
+Ttl.Text="Box Deity's General Purpose Menu (BDGPM) | V3.9"
 Ttl.TextColor3=Color3.new(1,1,1); Ttl.Font="GothamBold"; Ttl.TextSize=16
 Ttl.BackgroundTransparency=1; Ttl.TextXAlignment="Left"
 
 local Sub=Instance.new("TextLabel",Top)
 Sub.Size=UDim2.new(1,-120,0,20); Sub.Position=UDim2.new(0,20,0,28)
-Sub.Text="Optimized Precision Build Active"; Sub.TextColor3=Color3.new(0.85,0.85,0.85)
+Sub.Text="Armored Telemetry Engine Active"; Sub.TextColor3=Color3.new(0.85,0.85,0.85)
 Sub.Font="Gotham"; Sub.TextSize=11; Sub.BackgroundTransparency=1; Sub.TextXAlignment="Left"
 
 local Cls=Instance.new("TextButton",Top)
@@ -768,7 +789,7 @@ function CreateRow(tabName, name, desc, flag)
             Lighting.Ambient=OrigL.Amb; Lighting.OutdoorAmbient=OrigL.Out
             Lighting.Brightness=OrigL.Bri; Lighting.GlobalShadows=OrigL.Shad
         end
-        if flag == "FixGlass" then
+        if flag=="FixGlass" then
             FixGlassOcclusion(on)
         end
         if flag=="RemoveGrass" then
@@ -1218,24 +1239,7 @@ Players.PlayerAdded:Connect(function(p)
         end)
     end)
 end)
--- Fix: Force all transparent Glass to SmoothPlastic so Highlights render through
-local function FixGlassOcclusion(enabled)
-    for _, part in ipairs(Workspace:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if enabled then
-                if part.Material == Enum.Material.Glass then
-                    part:SetAttribute("WasGlass", true)
-                    part.Material = Enum.Material.SmoothPlastic
-                end
-            else
-                if part:GetAttribute("WasGlass") then
-                    part.Material = Enum.Material.Glass
-                    part:SetAttribute("WasGlass", nil)
-                end
-            end
-        end
-    end
-end
+
 -- ═══════════════════════════════════════════════════════════════
 -- 11. DECOUPLED DYNAMIC TARGET RESOLVER
 -- ═══════════════════════════════════════════════════════════════
@@ -1836,22 +1840,8 @@ end)
 
 local function HookNPC(model)
     if not model:IsA("Model") then return end
-    
-    -- 1. Ignore LocalPlayer character and any sub-rigs
-    if model == LP.Character or model:IsDescendantOf(LP.Character) then return end
-    
-    -- 2. Ignore camera viewmodels (where FPS arms live)
-    if model:IsDescendantOf(Cam) then return end
-    
-    -- 3. Ignore player characters
     if Players:GetPlayerFromCharacter(model) then return end
     if NPCCache[model] then return end
-
-    -- 4. Reject common first-person viewmodel and weapon model names
-    local lowName = model.Name:lower()
-    if lowName:find("viewmodel") or lowName:find("arms") or lowName:find("weapon") or lowName:find("gun") then
-        return
-    end
 
     local hum = model:FindFirstChildOfClass("Humanoid")
     if not hum then return end
@@ -1875,18 +1865,6 @@ local function HookNPC(model)
             NPCCache[model] = nil
         end
     end)
-end
-for _, v in ipairs(Cam:GetDescendants()) do
-    if v:IsA("Highlight") and v.Name == "NPC_YellowHL" then
-        v:Destroy()
-    end
-end
-if LP.Character then
-    for _, v in ipairs(LP.Character:GetDescendants()) do
-        if v:IsA("Highlight") and v.Name == "NPC_YellowHL" then
-            v:Destroy()
-        end
-    end
 end
 
 for _, obj in ipairs(Workspace:GetDescendants()) do
