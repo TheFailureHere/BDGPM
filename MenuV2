@@ -1840,8 +1840,22 @@ end)
 
 local function HookNPC(model)
     if not model:IsA("Model") then return end
+    
+    -- 1. Ignore LocalPlayer character and any sub-rigs
+    if model == LP.Character or model:IsDescendantOf(LP.Character) then return end
+    
+    -- 2. Ignore camera viewmodels (where FPS arms live)
+    if model:IsDescendantOf(Cam) then return end
+    
+    -- 3. Ignore player characters
     if Players:GetPlayerFromCharacter(model) then return end
     if NPCCache[model] then return end
+
+    -- 4. Reject common first-person viewmodel and weapon model names
+    local lowName = model.Name:lower()
+    if lowName:find("viewmodel") or lowName:find("arms") or lowName:find("weapon") or lowName:find("gun") then
+        return
+    end
 
     local hum = model:FindFirstChildOfClass("Humanoid")
     if not hum then return end
@@ -1865,6 +1879,18 @@ local function HookNPC(model)
             NPCCache[model] = nil
         end
     end)
+end
+for _, v in ipairs(Cam:GetDescendants()) do
+    if v:IsA("Highlight") and v.Name == "NPC_YellowHL" then
+        v:Destroy()
+    end
+end
+if LP.Character then
+    for _, v in ipairs(LP.Character:GetDescendants()) do
+        if v:IsA("Highlight") and v.Name == "NPC_YellowHL" then
+            v:Destroy()
+        end
+    end
 end
 
 for _, obj in ipairs(Workspace:GetDescendants()) do
