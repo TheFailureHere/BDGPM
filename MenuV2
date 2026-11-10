@@ -1,8 +1,8 @@
 --[[
-    Box Deity's General Purpose Menu (BDGPM) | V3.9 OPTIMIZED & ARMORED
-    Features: Live CFrame Mirrored 3D Target HUD, Stud Telemetry Standardization,
-    Decoupled Combat Telemetry, View Cones, Viewmodel-Filtered NPC Yellow Chams,
-    Glass Highlight Occlusion Bypass, High-Performance Frustum Culling.
+    Box Deity's General Purpose Menu (BDGPM) | V4.0 RETROACTIVE ARMOR & WEAPON EDITION
+    Features: Live CFrame Mirrored 3D Target HUD with Real-Time Gear/Weapon Invalidation,
+    Stud Telemetry Standardization, Decoupled Combat Telemetry, View Cones,
+    Viewmodel-Filtered NPC Yellow Chams, Glass Highlight Occlusion Bypass.
 ]]
 
 repeat task.wait() until game:IsLoaded()
@@ -408,13 +408,13 @@ TopFix.BackgroundColor3=Color3.fromRGB(unpack(Vals.Acc)); TopFix.BorderSizePixel
 
 local Ttl=Instance.new("TextLabel",Top)
 Ttl.Size=UDim2.new(1,-120,0,30); Ttl.Position=UDim2.new(0,20,0,5)
-Ttl.Text="Box Deity's General Purpose Menu (BDGPM) | V3.9"
+Ttl.Text="Box Deity's General Purpose Menu (BDGPM) | V4.0"
 Ttl.TextColor3=Color3.new(1,1,1); Ttl.Font="GothamBold"; Ttl.TextSize=16
 Ttl.BackgroundTransparency=1; Ttl.TextXAlignment="Left"
 
 local Sub=Instance.new("TextLabel",Top)
 Sub.Size=UDim2.new(1,-120,0,20); Sub.Position=UDim2.new(0,20,0,28)
-Sub.Text="Armored Telemetry Engine Active"; Sub.TextColor3=Color3.new(0.85,0.85,0.85)
+Sub.Text="Dynamic Equipment Pipeline Online"; Sub.TextColor3=Color3.new(0.85,0.85,0.85)
 Sub.Font="Gotham"; Sub.TextSize=11; Sub.BackgroundTransparency=1; Sub.TextXAlignment="Left"
 
 local Cls=Instance.new("TextButton",Top)
@@ -469,7 +469,7 @@ Min.MouseButton1Click:Connect(function()
 end)
 
 -- ─────────────────────────────────────────────────────────────
--- BOTTOM TARGET TELEMETRY HUD
+-- BOTTOM TARGET TELEMETRY HUD: [ INFO (LIVE MODEL VIEW) INFO ]
 -- ─────────────────────────────────────────────────────────────
 local TargetHUD = Instance.new("Frame", Screen)
 TargetHUD.Name = "BottomTargetHUD"
@@ -483,6 +483,7 @@ local thStroke = Instance.new("UIStroke", TargetHUD)
 thStroke.Color = Color3.fromRGB(unpack(Vals.Acc))
 thStroke.Thickness = 1.5
 
+-- Left Telemetry Block
 local LeftInfo = Instance.new("Frame", TargetHUD)
 LeftInfo.Size = UDim2.new(0, 125, 1, -12); LeftInfo.Position = UDim2.new(0, 10, 0, 6); LeftInfo.BackgroundTransparency = 1
 
@@ -514,6 +515,7 @@ HPText.Size = UDim2.new(1, 0, 0, 14); HPText.Position = UDim2.new(0, 0, 0, 56); 
 HPText.TextColor3 = Color3.fromRGB(0, 255, 120); HPText.Font = "Code"; HPText.TextSize = 10
 HPText.BackgroundTransparency = 1; HPText.TextXAlignment = "Left"
 
+-- Center Viewport Model Viewer (Zoomed Bust Framing)
 local ViewportContainer = Instance.new("Frame", TargetHUD)
 ViewportContainer.Size = UDim2.new(0, 80, 0, 80); ViewportContainer.Position = UDim2.new(0.5, -40, 0.5, -40)
 ViewportContainer.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
@@ -528,6 +530,7 @@ local VPCam = Instance.new("Camera")
 VPCam.Name = "ViewportCamera"; VPCam.Parent = Screen
 TargetViewport.CurrentCamera = VPCam
 
+-- Right Telemetry Block
 local RightInfo = Instance.new("Frame", TargetHUD)
 RightInfo.Size = UDim2.new(0, 125, 1, -12); RightInfo.Position = UDim2.new(1, -135, 0, 6); RightInfo.BackgroundTransparency = 1
 
@@ -552,10 +555,11 @@ TargetStatus.TextColor3 = Color3.fromRGB(255, 60, 60); TargetStatus.Font = "Goth
 TargetStatus.BackgroundTransparency = 1; TargetStatus.TextXAlignment = "Right"
 
 -- ─────────────────────────────────────────────────────────────
--- PRE-BAKED PUPPET CACHE & ZERO-LATENCY VIEWPORT
+-- PRE-BAKED PUPPET CACHE & DYNAMIC GEAR MIRROR
 -- ─────────────────────────────────────────────────────────────
 local PuppetStorage = Instance.new("Folder")
-PuppetStorage.Name = "PuppetStorage"; PuppetStorage.Parent = Screen
+PuppetStorage.Name = "PuppetStorage"
+PuppetStorage.Parent = Screen
 
 local PuppetCache = {}
 local activePuppet = nil
@@ -563,10 +567,14 @@ local currentVPTarget = nil
 
 local function GetOrCreatePuppet(entityModel)
     if not entityModel or not entityModel:IsA("Model") then return nil end
-    if PuppetCache[entityModel] then return PuppetCache[entityModel] end
+    if PuppetCache[entityModel] then
+        return PuppetCache[entityModel]
+    end
 
     entityModel.Archivable = true
-    for _, desc in ipairs(entityModel:GetDescendants()) do desc.Archivable = true end
+    for _, desc in ipairs(entityModel:GetDescendants()) do
+        desc.Archivable = true
+    end
 
     local clone = entityModel:Clone()
     if not clone then return nil end
@@ -579,14 +587,19 @@ local function GetOrCreatePuppet(entityModel)
             clonePart.Anchored = true
             clonePart.CanCollide = false
             
+            -- Match parts hierarchically (handles tools, accessories, multi-mesh armor)
             local origPart
             if clonePart.Parent == clone then
                 origPart = entityModel:FindFirstChild(clonePart.Name)
             elseif clonePart.Parent and clonePart.Parent.Parent == clone then
                 local parentObj = entityModel:FindFirstChild(clonePart.Parent.Name)
-                if parentObj then origPart = parentObj:FindFirstChild(clonePart.Name) end
+                if parentObj then
+                    origPart = parentObj:FindFirstChild(clonePart.Name)
+                end
             end
-            if not origPart then origPart = entityModel:FindFirstChild(clonePart.Name, true) end
+            if not origPart then
+                origPart = entityModel:FindFirstChild(clonePart.Name, true)
+            end
 
             if origPart and origPart:IsA("BasePart") then
                 partMap[clonePart] = origPart
@@ -597,15 +610,37 @@ local function GetOrCreatePuppet(entityModel)
     clone:PivotTo(CFrame.new(0, 0, 0))
     clone.Parent = PuppetStorage
 
-    local puppetData = { Model = clone, PartMap = partMap }
+    local puppetData = {
+        Model = clone,
+        PartMap = partMap
+    }
     PuppetCache[entityModel] = puppetData
 
-    entityModel.AncestryChanged:Connect(function(_, parent)
-        if not parent then
-            if activePuppet == puppetData then activePuppet = nil; currentVPTarget = nil end
+    -- Invalidate & Re-Bake when tools, weapons, or armor change dynamically
+    local function Invalidate()
+        if PuppetCache[entityModel] == puppetData then
+            if activePuppet == puppetData then
+                activePuppet = nil
+                currentVPTarget = nil
+            end
             clone:Destroy()
             PuppetCache[entityModel] = nil
         end
+    end
+
+    entityModel.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") or child:IsA("Accessory") or child:IsA("Model") then
+            task.wait(0.05) -- Let welds form
+            Invalidate()
+        end
+    end)
+    entityModel.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") or child:IsA("Accessory") or child:IsA("Model") then
+            Invalidate()
+        end
+    end)
+    entityModel.AncestryChanged:Connect(function(_, parent)
+        if not parent then Invalidate() end
     end)
 
     return puppetData
@@ -1215,6 +1250,7 @@ local function UpdatePlayersTab()
         end
     end
 end
+
 -- Pre-bake existing players in background
 for _, p in ipairs(Players:GetPlayers()) do
     if p ~= LP and p.Character then
@@ -1517,8 +1553,11 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- Visual ESP Pass (Stud Standardized)
+    -- Visual ESP Pass (Stud Standardized with Frustum Dot Culling)
     if RateAllow("ESP",dt) then
+        local camPos = Cam.CFrame.Position
+        local camLook = Cam.CFrame.LookVector
+
         for _,p in pairs(Players:GetPlayers()) do
             if p==LP then continue end
             local char=p.Character
@@ -1526,211 +1565,184 @@ RunService.RenderStepped:Connect(function(dt)
             local head=char and char:FindFirstChild("Head")
             local hum=char and char:FindFirstChildOfClass("Humanoid")
             local alive=hrp and head and hum and hum.Health>0
-            local dist=alive and (hrp.Position-Cam.CFrame.Position).Magnitude or math.huge
-            local labelInRange=dist<Vals.LabelDist
-            local boxInRange=dist<Vals.BoxDist
-            local skelInRange=dist<Vals.SkeletonDist
+            
+            if alive then
+                local toTarget = hrp.Position - camPos
+                local dist = toTarget.Magnitude
+                local inFront = toTarget:Dot(camLook) > 0
 
-            local isVis=true
-            if alive and (FLAGS.LabelVisCheck or FLAGS.PeekingLogic) then
-                RPar.FilterDescendantsInstances={LP.Character,Cam,char}
-                if Workspace:Raycast(Cam.CFrame.Position,head.Position-Cam.CFrame.Position,RPar) then isVis=false end
-            end
+                local labelInRange = dist < Vals.LabelDist
+                local boxInRange   = dist < Vals.BoxDist
+                local skelInRange  = dist < Vals.SkeletonDist
 
-            -- Stream-safe Billboard Labels
-            local lbl=Cache.Labels[p]
-            if FLAGS.Labels and alive and labelInRange then
-                if not lbl or lbl.Adornee~=head then
-                    if lbl then lbl:Destroy() end
-                    lbl=Instance.new("BillboardGui",Screen); lbl.Name="BDGPM_Lbl"
-                    lbl.Adornee=head; lbl.AlwaysOnTop=true; lbl.Size=UDim2.new(0,130,0,24); lbl.StudsOffset=Vector3.new(0,2.4,0)
-                    local txt=Instance.new("TextLabel",lbl); txt.Name="T"; txt.Size=UDim2.new(1,0,1,0)
-                    txt.BackgroundTransparency=1; txt.Font="Code"; txt.TextStrokeTransparency=0.4
-                    Cache.Labels[p]=lbl
+                local isVis = true
+                if (FLAGS.LabelVisCheck or FLAGS.PeekingLogic) and inFront and labelInRange then
+                    RPar.FilterDescendantsInstances = {LP.Character, Cam, char}
+                    if Workspace:Raycast(camPos, head.Position - camPos, RPar) then isVis = false end
                 end
-                lbl.Enabled=true
-                local txt=lbl:FindFirstChild("T")
-                if txt then
-                    txt.TextSize=Vals.TSize
-                    txt.Text=(FLAGS.Usernames and p.Name or p.DisplayName).." ["..math.floor(dist).."s]"
-                    txt.TextColor3=(FLAGS.LabelVisCheck and not isVis) and Color3.fromRGB(unpack(Vals.HidCol)) or Color3.fromRGB(unpack(Vals.VisCol))
+
+                -- Stream-safe Billboard Labels
+                local lbl = Cache.Labels[p]
+                if FLAGS.Labels and labelInRange then
+                    if not lbl or lbl.Adornee ~= head then
+                        if lbl then lbl:Destroy() end
+                        lbl = Instance.new("BillboardGui", Screen); lbl.Name = "BDGPM_Lbl"
+                        lbl.Adornee = head; lbl.AlwaysOnTop = true; lbl.Size = UDim2.new(0, 130, 0, 24); lbl.StudsOffset = Vector3.new(0, 2.4, 0)
+                        local txt = Instance.new("TextLabel", lbl); txt.Name = "T"; txt.Size = UDim2.new(1, 0, 1, 0)
+                        txt.BackgroundTransparency = 1; txt.Font = "Code"; txt.TextStrokeTransparency = 0.4
+                        Cache.Labels[p] = lbl
+                    end
+                    lbl.Enabled = true
+                    local txt = lbl:FindFirstChild("T")
+                    if txt then
+                        txt.TextSize = Vals.TSize
+                        txt.Text = (FLAGS.Usernames and p.Name or p.DisplayName) .. " [" .. math.floor(dist) .. "s]"
+                        txt.TextColor3 = (FLAGS.LabelVisCheck and not isVis) and Color3.fromRGB(unpack(Vals.HidCol)) or Color3.fromRGB(unpack(Vals.VisCol))
+                    end
+                elseif lbl then lbl.Enabled = false end
+
+                -- Team Squares
+                if HasDrawing then
+                    if FLAGS.TeamSquares and inFront and labelInRange then
+                        local proj, on = Cam:WorldToViewportPoint(head.Position + Vector3.new(0, 1.2, 0))
+                        if on then
+                            local tc = p.TeamColor and p.TeamColor.Color or Color3.new(1, 1, 1)
+                            local sz, th = Vals.TeamSqSize, Vals.TeamSqThick
+                            local x, y = proj.X - sz * 0.5, proj.Y - sz * 0.5
+                            local segs = {{x, y, x + sz, y}, {x, y, x, y + sz}, {x + sz, y, x + sz, y + sz}, {x, y + sz, x + sz, y + sz}}
+                            for i = 1, 4 do
+                                local ln = DLine(Cache.TeamSquares, p, i); local s = segs[i]
+                                ln.From = Vector2.new(s[1], s[2]); ln.To = Vector2.new(s[3], s[4])
+                                ln.Color = tc; ln.Thickness = th; ln.Visible = true
+                            end
+                        else for i = 1, 4 do local ln = DLine(Cache.TeamSquares, p, i); ln.Visible = false end end
+                    else for i = 1, 4 do if Cache.TeamSquares[p] and Cache.TeamSquares[p][i] then Cache.TeamSquares[p][i].Visible = false end end end
                 end
-            elseif lbl then lbl.Enabled=false end
 
-            -- Team Squares
-            if HasDrawing then
-                if FLAGS.TeamSquares and alive and labelInRange then
-                    local proj,on=Cam:WorldToViewportPoint(head.Position+Vector3.new(0,1.2,0))
-                    if on then
-                        local tc=p.TeamColor and p.TeamColor.Color or Color3.new(1,1,1)
-                        local sz,th=Vals.TeamSqSize,Vals.TeamSqThick
-                        local x,y=proj.X-sz/2,proj.Y-sz/2
-                        local segs={{x,y,x+sz,y},{x,y,x,y+sz},{x+sz,y,x+sz,y+sz},{x,y+sz,x+sz,y+sz}}
-                        for i=1,4 do
-                            local ln=DLine(Cache.TeamSquares,p,i); local s=segs[i]
-                            ln.From=Vector2.new(s[1],s[2]); ln.To=Vector2.new(s[3],s[4])
-                            ln.Color=tc; ln.Thickness=th; ln.Visible=true
-                        end
-                    else for i=1,4 do local ln=DLine(Cache.TeamSquares,p,i); ln.Visible=false end end
-                else for i=1,4 do if Cache.TeamSquares[p] and Cache.TeamSquares[p][i] then Cache.TeamSquares[p][i].Visible=false end end end
-            end
-
-            -- Projected ESP Boxes
-            if HasDrawing then
-                if FLAGS.ESPBoxes and alive and boxInRange then
-                    local bx,by,bw,bh=GetProjectedBounds(char)
-                    if bx then
-                        local bc=Color3.fromRGB(unpack(Vals.BoxCol))
-                        if Vals.BoxStyle=="Corners" then SetCornerBox(p,bx,by,bw,bh,bc,Vals.BoxCornerThick)
-                        else SetFullBox(p,bx,by,bw,bh,bc,Vals.BoxThick) end
+                -- Projected ESP Boxes
+                if HasDrawing then
+                    if FLAGS.ESPBoxes and inFront and boxInRange then
+                        local bx, by, bw, bh = GetProjectedBounds(char)
+                        if bx then
+                            local bc = Color3.fromRGB(unpack(Vals.BoxCol))
+                            if Vals.BoxStyle == "Corners" then SetCornerBox(p, bx, by, bw, bh, bc, Vals.BoxCornerThick)
+                            else SetFullBox(p, bx, by, bw, bh, bc, Vals.BoxThick) end
+                        else HideBox(p) end
                     else HideBox(p) end
-                else HideBox(p) end
-            end
+                end
 
-            -- View Direction Cones
-            if HasDrawing and FLAGS.ViewCones and alive and labelInRange then
-                local headCF = head.CFrame
-                local forward = headCF.LookVector * Vals.ConeLength
-                local rightOffset = (headCF.RightVector * math.tan(math.rad(Vals.ConeAngle))) * Vals.ConeLength
-                
-                local pCenter = head.Position + forward
-                local pLeft   = head.Position + forward - rightOffset
-                local pRight  = head.Position + forward + rightOffset
-                
-                local sOrigin, oVis = Cam:WorldToViewportPoint(head.Position)
-                local sCenter, cVis = Cam:WorldToViewportPoint(pCenter)
-                local sLeft,   lVis = Cam:WorldToViewportPoint(pLeft)
-                local sRight,  rVis = Cam:WorldToViewportPoint(pRight)
-                
-                if oVis and (cVis or lVis or rVis) then
-                    local col = Color3.fromRGB(unpack(Vals.ConeCol))
-                    local o2D = Vector2.new(sOrigin.X, sOrigin.Y)
+                -- View Direction Cones
+                if HasDrawing and FLAGS.ViewCones and inFront and labelInRange then
+                    local headCF = head.CFrame
+                    local forward = headCF.LookVector * Vals.ConeLength
+                    local rightOffset = (headCF.RightVector * math.tan(math.rad(Vals.ConeAngle))) * Vals.ConeLength
                     
-                    local l1 = DLine(Cache.Cones, p, 1)
-                    l1.From = o2D; l1.To = Vector2.new(sLeft.X, sLeft.Y)
-                    l1.Color = col; l1.Thickness = 1; l1.Visible = true
+                    local pCenter = head.Position + forward
+                    local pLeft   = head.Position + forward - rightOffset
+                    local pRight  = head.Position + forward + rightOffset
                     
-                    local l2 = DLine(Cache.Cones, p, 2)
-                    l2.From = o2D; l2.To = Vector2.new(sRight.X, sRight.Y)
-                    l2.Color = col; l2.Thickness = 1; l2.Visible = true
+                    local sOrigin, oVis = Cam:WorldToViewportPoint(head.Position)
+                    local sCenter, cVis = Cam:WorldToViewportPoint(pCenter)
+                    local sLeft,   lVis = Cam:WorldToViewportPoint(pLeft)
+                    local sRight,  rVis = Cam:WorldToViewportPoint(pRight)
                     
-                    local l3 = DLine(Cache.Cones, p, 3)
-                    l3.From = Vector2.new(sLeft.X, sLeft.Y); l3.To = Vector2.new(sRight.X, sRight.Y)
-                    l3.Color = col; l3.Thickness = 1; l3.Visible = true
-                else
+                    if oVis and (cVis or lVis or rVis) then
+                        local col = Color3.fromRGB(unpack(Vals.ConeCol))
+                        local o2D = Vector2.new(sOrigin.X, sOrigin.Y)
+                        
+                        local l1 = DLine(Cache.Cones, p, 1)
+                        l1.From = o2D; l1.To = Vector2.new(sLeft.X, sLeft.Y)
+                        l1.Color = col; l1.Thickness = 1; l1.Visible = true
+                        
+                        local l2 = DLine(Cache.Cones, p, 2)
+                        l2.From = o2D; l2.To = Vector2.new(sRight.X, sRight.Y)
+                        l2.Color = col; l2.Thickness = 1; l2.Visible = true
+                        
+                        local l3 = DLine(Cache.Cones, p, 3)
+                        l3.From = Vector2.new(sLeft.X, sLeft.Y); l3.To = Vector2.new(sRight.X, sRight.Y)
+                        l3.Color = col; l3.Thickness = 1; l3.Visible = true
+                    else
+                        for i = 1, 3 do local ln = DLine(Cache.Cones, p, i); ln.Visible = false end
+                    end
+                elseif Cache.Cones[p] then
                     for i = 1, 3 do local ln = DLine(Cache.Cones, p, i); ln.Visible = false end
                 end
-            elseif Cache.Cones[p] then
-                for i = 1, 3 do local ln = DLine(Cache.Cones, p, i); ln.Visible = false end
+
+                -- Health Bars
+                local hbg = Cache.Health[p]
+                if FLAGS.HealthBars and labelInRange then
+                    if not hbg or hbg.Parent ~= head then
+                        if hbg then hbg:Destroy() end
+                        hbg = Instance.new("BillboardGui", head); hbg.Name = "BDGPM_HP"
+                        hbg.AlwaysOnTop = true; hbg.Size = UDim2.new(0, 80, 0, 40)
+                        hbg.StudsOffset = Vector3.new(Vals.HBO, 0, 0)
+                        local bg2 = Instance.new("Frame", hbg); bg2.Name = "BG"
+                        bg2.Size = UDim2.new(0, math.max(Vals.HBW, 3), 1, 0)
+                        bg2.BackgroundColor3 = Color3.new(0, 0, 0); bg2.BorderSizePixel = 0; Instance.new("UICorner", bg2)
+                        local bar = Instance.new("Frame", bg2); bar.Name = "Bar"
+                        bar.AnchorPoint = Vector2.new(0, 1); bar.Position = UDim2.new(0, 0, 1, 0)
+                        bar.Size = UDim2.new(1, 0, 1, 0); bar.BorderSizePixel = 0; Instance.new("UICorner", bar)
+                        local txt = Instance.new("TextLabel", bg2); txt.Name = "Txt"
+                        txt.BackgroundTransparency = 1; txt.ZIndex = 15
+                        txt.Position = UDim2.new(1, 4, 0.5, 0); txt.AnchorPoint = Vector2.new(0, 0.5)
+                        txt.Size = UDim2.new(0, 60, 0, 14); txt.Font = "Code"; txt.TextSize = 11
+                        txt.TextColor3 = Color3.new(1, 1, 1); txt.TextStrokeTransparency = 0; txt.TextXAlignment = "Left"
+                        Cache.Health[p] = hbg
+                    end
+                    hbg.Enabled = true
+                    hbg.StudsOffset = Vector3.new(Vals.HBO, 0, 0)
+                    local bg2 = hbg:FindFirstChild("BG")
+                    if bg2 then bg2.Size = UDim2.new(0, math.max(Vals.HBW, 3), 1, 0) end
+                    local pct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                    local bar = bg2 and bg2:FindFirstChild("Bar")
+                    local txt = bg2 and bg2:FindFirstChild("Txt")
+                    if bar then
+                        bar.Size = UDim2.new(1, 0, pct, 0)
+                        bar.BackgroundColor3 = FLAGS.DynamicColor and (
+                            pct >= 0.75 and Color3.new(0, 1, 0) or pct >= 0.5 and Color3.new(1, 1, 0) or
+                            pct >= 0.25 and Color3.new(1, 0.4, 0) or Color3.fromRGB(150, 0, 0)
+                        ) or Color3.fromRGB(unpack(Vals.Acc))
+                    end
+                    if txt then txt.Visible = FLAGS.HealthNumbers; txt.Text = math.floor(hum.Health) .. "/" .. math.floor(hum.MaxHealth) end
+                elseif hbg then hbg.Enabled = false end
+
+                -- Outlines (Chams)
+                local hl = Cache.Outlines[p]
+                if FLAGS.Outlines and labelInRange then
+                    if not hl or hl.Parent ~= char then if hl then hl:Destroy() end; hl = Instance.new("Highlight", char); Cache.Outlines[p] = hl end
+                    hl.Enabled = true; hl.FillTransparency = Vals.FillT; hl.OutlineTransparency = Vals.OutT
+                    hl.OutlineColor = Color3.fromRGB(unpack(Vals.OutCol))
+                    hl.FillColor = (FLAGS.PeekingLogic and not isVis) and Color3.fromRGB(unpack(Vals.HidCol)) or Color3.fromRGB(unpack(Vals.VisCol))
+                    hl.DepthMode = (Vals.ChamsDepth == "Always On Top") and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+                elseif hl then hl.Enabled = false end
+
+                -- Beams
+                local bm = Cache.Beams[p]
+                if FLAGS.Beams and inFront and labelInRange and HasDrawing then
+                    if not bm then pcall(function() bm = Drawing.new("Line"); Cache.Beams[p] = bm end) end
+                    if bm then
+                        local sp, on = Cam:WorldToViewportPoint(hrp.Position)
+                        if on then bm.Visible = true; bm.From = Vector2.new(Cam.ViewportSize.X * 0.5, Cam.ViewportSize.Y)
+                            bm.To = Vector2.new(sp.X, sp.Y); bm.Color = Color3.fromRGB(unpack(Vals.BeamCol))
+                            bm.Thickness = Vals.BeamW; bm.Transparency = 1 - Vals.BeamT
+                        else bm.Visible = false end
+                    end
+                elseif bm then bm.Visible = false end
+            else
+                -- Clean/hide when not alive
+                if Cache.Labels[p] then Cache.Labels[p].Enabled = false end
+                if Cache.Health[p] then Cache.Health[p].Enabled = false end
+                if Cache.Outlines[p] then Cache.Outlines[p].Enabled = false end
+                HideBox(p)
+                if Cache.Cones[p] then for i = 1, 3 do Cache.Cones[p][i].Visible = false end end
+                if Cache.Beams[p] then Cache.Beams[p].Visible = false end
             end
-
-            -- Health Bars
-            local hbg=Cache.Health[p]
-            if FLAGS.HealthBars and alive and labelInRange then
-                if not hbg or hbg.Parent~=head then
-                    if hbg then hbg:Destroy() end
-                    hbg=Instance.new("BillboardGui",head); hbg.Name="BDGPM_HP"
-                    hbg.AlwaysOnTop=true; hbg.Size=UDim2.new(0,80,0,40)
-                    hbg.StudsOffset=Vector3.new(Vals.HBO,0,0)
-                    local bg2=Instance.new("Frame",hbg); bg2.Name="BG"
-                    bg2.Size=UDim2.new(0,math.max(Vals.HBW,3),1,0)
-                    bg2.BackgroundColor3=Color3.new(0,0,0); bg2.BorderSizePixel=0; Instance.new("UICorner",bg2)
-                    local bar=Instance.new("Frame",bg2); bar.Name="Bar"
-                    bar.AnchorPoint=Vector2.new(0,1); bar.Position=UDim2.new(0,0,1,0)
-                    bar.Size=UDim2.new(1,0,1,0); bar.BorderSizePixel=0; Instance.new("UICorner",bar)
-                    local txt=Instance.new("TextLabel",bg2); txt.Name="Txt"
-                    txt.BackgroundTransparency=1; txt.ZIndex=15
-                    txt.Position=UDim2.new(1,4,0.5,0); txt.AnchorPoint=Vector2.new(0,0.5)
-                    txt.Size=UDim2.new(0,60,0,14); txt.Font="Code"; txt.TextSize=11
-                    txt.TextColor3=Color3.new(1,1,1); txt.TextStrokeTransparency=0; txt.TextXAlignment="Left"
-                    Cache.Health[p]=hbg
-                end
-                hbg.Enabled=true
-                hbg.StudsOffset=Vector3.new(Vals.HBO,0,0)
-                local bg2=hbg:FindFirstChild("BG")
-                if bg2 then bg2.Size=UDim2.new(0,math.max(Vals.HBW,3),1,0) end
-                local pct=math.clamp(hum.Health/hum.MaxHealth,0,1)
-                local bar=bg2 and bg2:FindFirstChild("Bar")
-                local txt=bg2 and bg2:FindFirstChild("Txt")
-                if bar then
-                    bar.Size=UDim2.new(1,0,pct,0)
-                    bar.BackgroundColor3=FLAGS.DynamicColor and (
-                        pct>=0.75 and Color3.new(0,1,0) or pct>=0.5 and Color3.new(1,1,0) or
-                        pct>=0.25 and Color3.new(1,0.4,0) or Color3.fromRGB(150,0,0)
-                    ) or Color3.fromRGB(unpack(Vals.Acc))
-                end
-                if txt then txt.Visible=FLAGS.HealthNumbers; txt.Text=math.floor(hum.Health).."/"..math.floor(hum.MaxHealth) end
-            elseif hbg then hbg.Enabled=false end
-
-            -- Skeleton ESP
-            if HasDrawing then
-                if FLAGS.SkeletonESP and alive and skelInRange then
-                    local isR15=char:FindFirstChild("UpperTorso")~=nil
-                    local pairs_list
-                    if isR15 then
-                        pairs_list={
-                            {"Head","UpperTorso"},{"UpperTorso","LowerTorso"},
-                            {"UpperTorso","LeftUpperArm"},{"LeftUpperArm","LeftLowerArm"},{"LeftLowerArm","LeftHand"},
-                            {"UpperTorso","RightUpperArm"},{"RightUpperArm","RightLowerArm"},{"RightLowerArm","RightHand"},
-                            {"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},{"LeftLowerLeg","LeftFoot"},
-                            {"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"},{"RightLowerLeg","RightFoot"},
-                        }
-                    else
-                        pairs_list={
-                            {"Head","Torso"},{"Torso","Left Arm"},{"Torso","Right Arm"},
-                            {"Torso","Left Leg"},{"Torso","Right Leg"},
-                        }
-                    end
-                    local valid={}
-                    for _,bp in ipairs(pairs_list) do
-                        local j1=char:FindFirstChild(bp[1]); local j2=char:FindFirstChild(bp[2])
-                        if j1 and j2 then valid[#valid+1]={j1.Position,j2.Position} end
-                    end
-                    local slines=GetSkeletonLines(p,#valid)
-                    local col=Color3.fromRGB(unpack(Vals.SkeletonCol))
-                    for i,bone in ipairs(valid) do
-                        local p1,o1=Cam:WorldToViewportPoint(bone[1])
-                        local p2,o2=Cam:WorldToViewportPoint(bone[2])
-                        local ln=slines[i]
-                        if o1 and o2 then
-                            ln.From=Vector2.new(p1.X,p1.Y); ln.To=Vector2.new(p2.X,p2.Y)
-                            ln.Color=col; ln.Thickness=Vals.SkeletonThick; ln.Visible=true
-                        else ln.Visible=false end
-                    end
-                    for i=#valid+1,#slines do slines[i].Visible=false end
-                else
-                    local sl=Cache.Skeletons[p]; if sl then for _,ln in ipairs(sl) do ln.Visible=false end end
-                end
-            end
-
-            -- Outlines (Chams)
-            local hl=Cache.Outlines[p]
-            if FLAGS.Outlines and alive and labelInRange then
-                if not hl or hl.Parent~=char then if hl then hl:Destroy() end; hl=Instance.new("Highlight",char); Cache.Outlines[p]=hl end
-                hl.Enabled=true; hl.FillTransparency=Vals.FillT; hl.OutlineTransparency=Vals.OutT
-                hl.OutlineColor=Color3.fromRGB(unpack(Vals.OutCol))
-                hl.FillColor=(FLAGS.PeekingLogic and not isVis) and Color3.fromRGB(unpack(Vals.HidCol)) or Color3.fromRGB(unpack(Vals.VisCol))
-                hl.DepthMode = (Vals.ChamsDepth == "Always On Top") and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
-            elseif hl then hl.Enabled=false end
-
-            -- Beams
-            local bm=Cache.Beams[p]
-            if FLAGS.Beams and alive and labelInRange and HasDrawing then
-                if not bm then pcall(function() bm=Drawing.new("Line"); Cache.Beams[p]=bm end) end
-                if bm then
-                    local sp,on=Cam:WorldToViewportPoint(hrp.Position)
-                    if on then bm.Visible=true; bm.From=Vector2.new(Cam.ViewportSize.X/2,Cam.ViewportSize.Y)
-                        bm.To=Vector2.new(sp.X,sp.Y); bm.Color=Color3.fromRGB(unpack(Vals.BeamCol))
-                        bm.Thickness=Vals.BeamW; bm.Transparency=1-Vals.BeamT
-                    else bm.Visible=false end
-                end
-            elseif bm then bm.Visible=false end
         end
     end
 end)
 
 -- ═══════════════════════════════════════════════════════════════
--- 13. PHYSICS & LOCOMOTION ENGINE
+-- 13. PHYSICS & LOCOMOTION ENGINE (CACHED BUFFER)
 -- ═══════════════════════════════════════════════════════════════
 RunService.Stepped:Connect(function(_,dt)
     lastPhys=lastPhys+dt
@@ -1769,34 +1781,35 @@ RunService.Stepped:Connect(function(_,dt)
         hrp.Anchored=false; if h then h.PlatformStand=false end
     end
 
-    if FLAGS.Noclip and char then
-        for _,v in pairs(char:GetDescendants()) do
-            if v:IsA("BasePart") then
-                local override=false
-                for limb,m in pairs(LimbModes) do
+    -- Zero-alloc Noclip iteration using pre-cached part buffer
+    if FLAGS.Noclip and #LocalCharParts > 0 then
+        for _, v in ipairs(LocalCharParts) do
+            if v and v.Parent then
+                local override = false
+                for limb, m in pairs(LimbModes) do
                     if v.Name:find(limb) then
-                        v.CanCollide=(m==1); override=true; break
+                        v.CanCollide = (m == 1); override = true; break
                     end
                 end
-                if not override then v.CanCollide=false end
+                if not override then v.CanCollide = false end
             end
         end
     end
 
-    if FLAGS.FrictionMod and char then
-        for _,v in pairs(char:GetDescendants()) do
-            if v:IsA("BasePart") then
-                pcall(function() v.CustomPhysicalProperties=PhysicalProperties.new(0,0,0,100,100) end)
+    if FLAGS.FrictionMod and #LocalCharParts > 0 then
+        for _, v in ipairs(LocalCharParts) do
+            if v and v.Parent then
+                pcall(function() v.CustomPhysicalProperties = PhysicalProperties.new(0,0,0,100,100) end)
             end
         end
     end
 end)
 
 -- ═══════════════════════════════════════════════════════════════
--- 14. NPC SCANNER & HIGHLIGHT ENGINE
+-- 14. NPC SCANNER & HIGHLIGHT ENGINE (VIEWMODEL FILTERED)
 -- ═══════════════════════════════════════════════════════════════
 local function CheckNPC(v)
-    if not v:IsA("Model") or v==LP.Character then return end
+    if not v:IsA("Model") or v == LP.Character or v:IsDescendantOf(LP.Character) or v:IsDescendantOf(Cam) then return end
     if v.Name:find("Whisper") or v.Name:find("Dozer") or v.Name:find("Anton") or v.Name:find("MI-24V") then
         Bosses[v]=true
     elseif v:FindFirstChildOfClass("Humanoid") and v:FindFirstChild("Head") and not Players:GetPlayerFromCharacter(v) then
@@ -1840,18 +1853,11 @@ end)
 
 local function HookNPC(model)
     if not model:IsA("Model") then return end
-    
-    -- 1. Ignore LocalPlayer character and any sub-rigs
     if model == LP.Character or model:IsDescendantOf(LP.Character) then return end
-    
-    -- 2. Ignore camera viewmodels (where FPS arms live)
     if model:IsDescendantOf(Cam) then return end
-    
-    -- 3. Ignore player characters
     if Players:GetPlayerFromCharacter(model) then return end
     if NPCCache[model] then return end
 
-    -- 4. Reject common first-person viewmodel and weapon model names
     local lowName = model.Name:lower()
     if lowName:find("viewmodel") or lowName:find("arms") or lowName:find("weapon") or lowName:find("gun") then
         return
@@ -1879,18 +1885,6 @@ local function HookNPC(model)
             NPCCache[model] = nil
         end
     end)
-end
-for _, v in ipairs(Cam:GetDescendants()) do
-    if v:IsA("Highlight") and v.Name == "NPC_YellowHL" then
-        v:Destroy()
-    end
-end
-if LP.Character then
-    for _, v in ipairs(LP.Character:GetDescendants()) do
-        if v:IsA("Highlight") and v.Name == "NPC_YellowHL" then
-            v:Destroy()
-        end
-    end
 end
 
 for _, obj in ipairs(Workspace:GetDescendants()) do
@@ -1987,7 +1981,7 @@ local function OnCharacter()
     OrigCamFOV=Cam.FieldOfView
     LockedTarget=nil
     currentVPTarget=nil
-    table.clear(vpPartMap)
+    activePuppet=nil
 end
 
 LP.CharacterAdded:Connect(OnCharacter)
